@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Geometry Dash: Neon Web</title>
+    <style>
+        :root {
+            --bg-color: #0f0c29;
+            --primary: #00f2fe;
+            --accent: #ff0844;
+            --text: #ffffff;
+            --panel-bg: rgba(20, 15, 45, 0.85);
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg-color);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden; /* Забороняємо скрол */
+            touch-action: none; /* Забороняємо зум на телефонах */
+        }
+
+        /* Канвас гри */
+        #gameCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Інтерфейс (меню, екрани) */
+        .ui-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, rgba(15,12,41,0.6) 0%, rgba(15,12,41,1) 100%);
+            backdrop-filter: blur(5px);
+            z-index: 10;
+            transition: opacity 0.4s ease, visibility 0.4s;
+        }
+
+        .hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        /* Заголовки */
+        h1 {
+            font-size: 4rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            color: transparent;
+            -webkit-text-stroke: 2px var(--primary);
+            text-shadow: 0 0 20px rgba(0, 242, 254, 0.5);
+            text-align: center;
+        }
+
+        h2 {
+            font-size: 2.5rem;
+            color: var(--accent);
+            text-shadow: 0 0 15px var(--accent);
+            margin-bottom: 30px;
+        }
+
+        /* Вибір героїв */
+        .hero-selection {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 90vw;
+        }
+
+        .hero-card {
+            width: 80px;
+            height: 80px;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-card img {
+            max-width: 80%;
+            max-height: 80%;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+
+        /* Заглушка, якщо картинки ще немає в папці */
+        .hero-card .fallback {
+            width: 60%;
+            height: 60%;
+            background: linear-gradient(45deg, var(--primary), var(--accent));
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .hero-card.active {
+            border-color: var(--primary);
+            box-shadow: 0 0 20px var(--primary), inset 0 0 10px var(--primary);
+            transform: translateY(-5px) scale(1.1);
+        }
+
+        .hero-name {
+            position: absolute;
+            bottom: -25px;
+            font-size: 14px;
+            color: var(--primary);
+            opacity: 0;
+            transition: 0.3s;
+        }
+        .hero-card.active .hero-name { opacity: 1; bottom: -30px; }
+
+        /* Кнопки */
+        .btn {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text);
+            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.4);
+            transition: all 0.2s ease;
+            margin: 10px;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 242, 254, 0.8);
+        }
+        
+        .btn-alt {
+            background: linear-gradient(90deg, #ff0844 0%, #ffb199 100%);
+            box-shadow: 0 0 20px rgba(255, 8, 68, 0.4);
+        }
+        .btn-alt:hover { box-shadow: 0 0 30px rgba(255, 8, 68, 0.8); }
+
+        /* Внутрішній інтерфейс гри */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 5;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+
+        .score-display { color: #fff; margin-bottom: 5px; }
+        .high-score-display { color: var(--primary); font-size: 18px; }
+        
+        /* Статистика на Game Over */
+        .stats-box {
+            background: var(--panel-bg);
+            padding: 30px 50px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .stats-box p { margin: 10px 0; font-size: 1.2rem; }
+        .stats-box .val { font-size: 2rem; font-weight: bold; color: var(--primary); }
+    </style>
+</head>
+<body>
+
+    <div id="hud" class="hidden">
+        <div class="score-display">Рахунок: <span id="currentScoreHud">0</span></div>
+        <div class="high-score-display">Рекорд: <span id="bestScoreHud">0</span></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="mainMenu" class="ui-screen">
+        <h1>Platon Dash</h1>
+        <p style="margin-top: -10px; margin-bottom: 30px; color: #aaa;">Обери свого героя</p>
+        
+        <div class="hero-selection" id="heroContainer">
+            </div>
+
+        <button class="btn" id="startBtn">Почати гру</button>
+        <p style="margin-top: 20px; font-size: 14px; color: #888;">Пробіл / Клік / Торкання — Стрибок</p>
+    </div>
+
+    <div id="gameOverMenu" class="ui-screen hidden">
+        <h2>ГРА ЗАКІНЧЕНА</h2>
+        
+        <div class="stats-box">
+            <p>Твій рахунок</p>
+            <div class="val" id="finalScore">0</div>
+            <p style="margin-top: 20px;">Найкращий результат</p>
+            <div class="val" id="finalBestScore" style="color: #ff0844;">0</div>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; justify-content: center;">
+            <button class="btn" id="restartBtn">Заново</button>
+            <button class="btn btn-alt" id="changeHeroBtn">Змінити героя</button>
+        </div>
+    </div>
+
+    <script>
+        // --- НАЛАШТУВАННЯ ТА ЗМІННІ ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const UI = {
+            mainMenu: document.getElementById('mainMenu'),
+            gameOverMenu: document.getElementById('gameOverMenu'),
+            hud: document.getElementById('hud'),
+            heroContainer: document.getElementById('heroContainer'),
+            scoreHud: document.getElementById('currentScoreHud'),
+            bestHud: document.getElementById('bestScoreHud')
+        };
+
+        const heroes = [
+            { file: 'Tito.png', name: 'Tito' },
+            { file: 'Smartik.png', name: 'Smartik' },
+            { file: 'Junior.png', name: 'Junior' },
+            { file: 'Fil.png', name: 'Fil' },
+            { file: 'Milka.png', name: 'Milka' }
+        ];
+
+        let selectedHeroIdx = 0;
+        let heroImage = new Image();
+        let isHeroLoaded = false;
+
+        // Ігровий стан
+        let state = 'MENU'; // MENU, PLAYING, GAMEOVER
+        let animationId;
+        let frames = 0;
+        let gameSpeed = 6;
+        let score = 0;
+        let bestScore = localStorage.getItem('gdBestScore') || 0;
+        UI.bestHud.innerText = bestScore;
+
+        // Фізика
+        const gravity = 0.6;
+        let floorY = 0; // Встановиться під час ресайзу
+
+        // Сутності
+        let player = {};
+        let obstacles = [];
+        let particles = []; // Для паралакс-фону
+
+        // Аудіо (Web Audio API)
+        let audioCtx;
+        let bgmOscillator;
+
+        // --- ІНІЦІАЛІЗАЦІЯ ---
+        function initCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            floorY = canvas.height - 100;
+            initParticles();
+        }
+        window.addEventListener('resize', initCanvas);
+        initCanvas();
+
+        function createHeroMenu() {
+            UI.heroContainer.innerHTML = '';
+            heroes.forEach((h, index) => {
+                const card = document.createElement('div');
+                card.className = `hero-card ${index === selectedHeroIdx ? 'active' : ''}`;
+                
+                const img = document.createElement('img');
+                img.src = h.file;
+                img.alt = h.name;
+                
+                // Якщо картинка не завантажиться (не знайдена в папці), покажемо красиву заглушку
+                img.onerror = () => {
+                    img.style.display = 'none';
+                    const fallback = document.createElement('div');
+                    fallback.className = 'fallback';
+                    fallback.innerText = h.name[0];
+                    card.appendChild(fallback);
+                };
+
+                const nameLabel = document.createElement('div');
+                nameLabel.className = 'hero-name';
+                nameLabel.innerText = h.name;
+
+                card.appendChild(img);
+                card.appendChild(nameLabel);
+
+                card.onclick = () => {
+                    document.querySelectorAll('.hero-card').forEach(c => c.classList.remove('active'));
+                    card.classList.add('active');
+                    selectedHeroIdx = index;
+                    loadHeroImage();
+                };
+                UI.heroContainer.appendChild(card);
+            });
+            loadHeroImage();
+        }
+
+        function loadHeroImage() {
+            heroImage = new Image();
+            heroImage.src = heroes[selectedHeroIdx].file;
+            heroImage.onload = () => isHeroLoaded = true;
+            heroImage.onerror = () => isHeroLoaded = false;
+        }
+
+        // --- АУДІО СИСТЕМА (Без файлів) ---
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playJumpSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function playCrashSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.3);
+            
+            gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        }
+
+        function startBGM() {
+            if (!audioCtx) return;
+            if (bgmOscillator) return;
+            bgmOscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            bgmOscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            bgmOscillator.type = 'sine';
+            bgmOscillator.frequency.setValueAtTime(110, audioCtx.currentTime); // Бас
+            gainNode.gain.setValueAtTime(0.02, audioCtx.currentTime); // Дуже тихо, щоб не дратувати
+            
+            bgmOscillator.start();
+        }
+
+        function stopBGM() {
+            if (bgmOscillator) {
+                bgmOscillator.stop();
+                bgmOscillator.disconnect();
+                bgmOscillator = null;
+            }
+        }
+
+        // --- УПРАВЛІННЯ ---
+        function handleInput(e) {
+            if (e.type === 'keydown' && e.code !== 'Space') return;
+            if (e.type === 'keydown') e.preventDefault(); // Запобігання скролу пробілом
+
+            if (state === 'PLAYING') {
+                if (player.isGrounded) {
+                    player.dy = player.jumpForce;
+                    player.isGrounded = false;
+                    playJumpSound();
+                }
+            } else if (state === 'MENU' && e.type === 'keydown' && e.code === 'Space') {
+                startGame();
+            }
+        }
+
+        window.addEventListener('keydown', handleInput);
+        window.addEventListener('mousedown', handleInput);
+        window.addEventListener('touchstart', (e) => {
+            if (e.target.tagName !== 'BUTTON') {
+                e.preventDefault(); // Щоб не було подвійного кліку
+                handleInput(e);
+            }
+        }, { passive: false });
+
+        // --- ЛОГІКА ГРИ ---
+        function startGame() {
+            initAudio();
+            startBGM();
+            
+            state = 'PLAYING';
+            UI.mainMenu.classList.add('hidden');
+            UI.gameOverMenu.classList.add('hidden');
+            UI.hud.classList.remove('hidden');
+            
+            // Скидання змінних
+            frames = 0;
+            score = 0;
+            gameSpeed = window.innerWidth < 600 ? 5 : 7; // На мобільних трохи повільніше
+            obstacles = [];
+            
+            player = {
+                x: window.innerWidth * 0.15, // 15% від екрану зліва
+                y: floorY - 50,
+                size: 45,
+                dy: 0,
+                jumpForce: -13,
+                isGrounded: true,
+                rotation: 0
+            };
+
+            loop();
+        }
+
+        function gameOver() {
+            state = 'GAMEOVER';
+            cancelAnimationFrame(animationId);
+            stopBGM();
+            playCrashSound();
+            
+            // Вібрація на телефонах
+            if (navigator.vibrate) navigator.vibrate(200);
+
+            // Рекорди
+            if (score > bestScore) {
+                bestScore = Math.floor(score);
+                localStorage.setItem('gdBestScore', bestScore);
+            }
+
+            UI.hud.classList.add('hidden');
+            UI.gameOverMenu.classList.remove('hidden');
+            document.getElementById('finalScore').innerText = Math.floor(score);
+            document.getElementById('finalBestScore').innerText = bestScore;
+            UI.bestHud.innerText = bestScore;
+        }
+
+        // Генерація перешкод
+        function spawnObstacle() {
+            const types = ['spike', 'platform', 'pit'];
+            // На початку гри ями і платформи не генеруємо для легкості
+            let allowedTypes = score < 300 ? ['spike'] : score < 800 ? ['spike', 'platform'] : types;
+            
+            const type = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
+            
+            let obs = { x: canvas.width, type: type, passed: false };
+
+            if (type === 'spike') {
+                obs.w = 40;
+                obs.h = 40;
+                obs.y = floorY - obs.h;
+            } else if (type === 'platform') {
+                obs.w = Math.random() > 0.5 ? 120 : 80;
+                obs.h = 30;
+                // Платформа висить у повітрі
+                obs.y = floorY - 80 - (Math.random() * 40); 
+            } else if (type === 'pit') {
+                obs.w = 150 + (gameSpeed * 5); // Чим більша швидкість, тим ширша яма, але прохідна
+                obs.h = canvas.height - floorY;
+                obs.y = floorY;
+            }
+
+            obstacles.push(obs);
+        }
+
+        // --- ОНОВЛЕННЯ СТАНУ ---
+        function update() {
+            frames++;
+            score += 0.1; // Рахунок зростає з часом
+            UI.scoreHud.innerText = Math.floor(score);
+
+            // Збільшення швидкості
+            if (frames % 600 === 0) gameSpeed += 0.5;
+
+            // Спавн перешкод
+            let spawnRate = Math.max(70, 150 - Math.floor(gameSpeed * 5)); 
+            if (frames % spawnRate === 0) {
+                spawnObstacle();
+            }
+
+            // Фізика гравця
+            player.dy += gravity;
+            player.y += player.dy;
+
+            // Обертання куба під час стрибка
+            if (!player.isGrounded) {
+                player.rotation += gameSpeed * 1.5;
+            } else {
+                // Вирівнювання до найближчих 90 градусів при приземленні
+                player.rotation = Math.round(player.rotation / 90) * 90;
+            }
+
+            // Перевірка колізій та оновлення перешкод
+            player.isGrounded = false;
+            let onPlatform = false;
+            let inPit = false;
+
+            for (let i = 0; i < obstacles.length; i++) {
+                let obs = obstacles[i];
+                obs.x -= gameSpeed;
+
+                // Видалення об'єктів поза екраном
+                if (obs.x + obs.w < 0) {
+                    obstacles.splice(i, 1);
+                    i--;
+                    continue;
+                }
+
+                // Перевірка "Провалу в яму"
+                if (obs.type === 'pit') {
+                    if (player.x + player.size/2 > obs.x && player.x + player.size/2 < obs.x + obs.w) {
+                        inPit = true;
+                    }
+                }
+
+                // AABB Колізії (проста фізика прямокутників)
+                // Робимо хітбокс гравця трохи меншим для чесності
+                let px = player.x + 5;
+                let py = player.y + 5;
+                let pw = player.size - 10;
+                let ph = player.size - 10;
+
+                let hitX = px < obs.x + obs.w && px + pw > obs.x;
+                let hitY = py < obs.y + obs.h && py + ph > obs.y;
+
+                if (hitX && hitY) {
+                    if (obs.type === 'spike') {
+                        // Для шипів робимо трикутний хітбокс наближено
+                        let spikeCenter = obs.x + obs.w/2;
+                        if (Math.abs((px+pw/2) - spikeCenter) < obs.w/2 - 5) {
+                            gameOver();
+                        }
+                    } 
+                    else if (obs.type === 'platform') {
+                        // Якщо падаємо зверху на платформу
+                        if (player.dy > 0 && player.y + player.size - player.dy <= obs.y + 10) {
+                            player.y = obs.y - player.size;
+                            player.dy = 0;
+                            player.isGrounded = true;
+                            onPlatform = true;
+                        } else {
+                            // Врізалися збоку або знизу
+                            gameOver();
+                        }
+                    }
+                }
+            }
+
+            // Логіка підлоги
+            if (!inPit && !onPlatform && player.y + player.size >= floorY) {
+                player.y = floorY - player.size;
+                player.dy = 0;
+                player.isGrounded = true;
+            }
+
+            // Якщо впав у яму
+            if (player.y > canvas.height) {
+                gameOver();
+            }
+
+            updateParticles();
+        }
+
+        // --- ВІДМАЛЬОВКА ---
+        function initParticles() {
+            particles = [];
+            for(let i=0; i<50; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 3 + 1,
+                    speed: Math.random() * 2 + 0.5,
+                    color: Math.random() > 0.5 ? '#00f2fe' : '#ff0844'
+                });
+            }
+        }
+
+        function updateParticles() {
+            particles.forEach(p => {
+                p.x -= p.speed * (gameSpeed / 5);
+                if (p.x < 0) {
+                    p.x = canvas.width;
+                    p.y = Math.random() * canvas.height;
+                }
+            });
+        }
+
+        function draw() {
+            // Очищення фону (з легким шлейфом)
+            ctx.fillStyle = 'rgba(15, 12, 41, 0.4)'; // var(--bg-color) з прозорістю
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Малюємо паралакс зірки
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = 0.5;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
+            // Малюємо підлогу
+            ctx.fillStyle = '#1a103c'; // Темно-фіолетова
+            ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+            // Неонова лінія підлоги
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#00f2fe';
+            ctx.fillStyle = '#00f2fe';
+            ctx.fillRect(0, floorY, canvas.width, 3);
+            ctx.shadowBlur = 0; // Скидання тіні
+
+            // Малюємо перешкоди
+            obstacles.forEach(obs => {
+                if (obs.type === 'spike') {
+                    ctx.fillStyle = '#ff0844';
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#ff0844';
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x + obs.w / 2, obs.y); // Вершина
+                    ctx.lineTo(obs.x + obs.w, obs.y + obs.h); // Правий низ
+                    ctx.lineTo(obs.x, obs.y + obs.h); // Лівий низ
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                } 
+                else if (obs.type === 'platform') {
+                    let grad = ctx.createLinearGradient(obs.x, obs.y, obs.x, obs.y + obs.h);
+                    grad.addColorStop(0, '#00f2fe');
+                    grad.addColorStop(1, '#4facfe');
+                    ctx.fillStyle = grad;
+                    
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#00f2fe';
+                    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                    
+                    // Внутрішня чорна частина для стилю GD
+                    ctx.fillStyle = '#0f0c29';
+                    ctx.fillRect(obs.x + 3, obs.y + 3, obs.w - 6, obs.h - 6);
+                    ctx.shadowBlur = 0;
+                }
+                else if (obs.type === 'pit') {
+                    // Малюємо "дірку" в підлозі (замальовуємо кольором фону)
+                    ctx.fillStyle = '#0f0c29'; // Колір фону
+                    ctx.fillRect(obs.x, floorY, obs.w, canvas.height - floorY);
+                }
+            });
+
+            // Малюємо гравця
+            ctx.save();
+            // Зсуваємо центр координат в центр гравця для обертання
+            ctx.translate(player.x + player.size/2, player.y + player.size/2);
+            ctx.rotate(player.rotation * Math.PI / 180);
+
+            if (isHeroLoaded) {
+                // Якщо зображення завантажене успішно
+                ctx.drawImage(heroImage, -player.size/2, -player.size/2, player.size, player.size);
+                
+                // Додаємо легке світіння контуру картинки
+                ctx.strokeStyle = '#00f2fe';
+                ctx.lineWidth = 2;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#00f2fe';
+                ctx.strokeRect(-player.size/2, -player.size/2, player.size, player.size);
+            } else {
+                // Красивий Fallback (запасний варіант), якщо картинки немає
+                let grad = ctx.createLinearGradient(-player.size/2, -player.size/2, player.size/2, player.size/2);
+                grad.addColorStop(0, '#ff0844');
+                grad.addColorStop(1, '#ffb199');
+                ctx.fillStyle = grad;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#ff0844';
+                ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
+                
+                // Декоративний внутрішній квадрат
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-player.size/4, -player.size/4, player.size/2, player.size/2);
+            }
+            ctx.restore();
+        }
+
+        // Головний ігровий цикл
+        function loop() {
+            if (state !== 'PLAYING') return;
+            update();
+            draw();
+            animationId = requestAnimationFrame(loop);
+        }
+
+        // --- ОБРОБНИКИ КНОПОК ---
+        document.getElementById('startBtn').addEventListener('click', startGame);
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+        document.getElementById('changeHeroBtn').addEventListener('click', () => {
+            state = 'MENU';
+            UI.gameOverMenu.classList.add('hidden');
+            UI.mainMenu.classList.remove('hidden');
+            // Очищаємо канвас
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            initParticles();
+            draw(); // Відмалює порожній фон
+        });
+
+        // Запуск меню
+        createHeroMenu();
+
+    </script>
+</body>
+</html>
