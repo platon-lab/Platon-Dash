@@ -255,7 +255,23 @@
             { file: 'Junior.png', name: 'Junior' },
             { file: 'Fil.png', name: 'Fil' },
             { file: 'Milka.png', name: 'Milka' },
-            { file: 'Bark.png', name: 'Bark' }
+            { file: 'Bark.png', name: 'Bark' },
+            { file: 'Persik.png', name: 'Persik' },
+            { file: 'Spike.png', name: 'Spike' },
+            { file: 'Alyonka.png', name: 'Alyonka' },
+            { file: 'Lilu.png', name: 'Lilu' },
+            { file: 'Manya.png', name: 'Manya' },
+            { file: 'Liza.png', name: 'Liza' },
+            { file: 'Grivna.png', name: 'Grivna' },
+            { file: 'Ben.png', name: 'Ben' },
+            { file: 'Goldi.png', name: 'Goldi' },
+            { file: 'Raf.png', name: 'Raf' },
+            { file: 'Veles.png', name: 'Veles' },
+            { file: 'Masha.png', name: 'Masha' },
+            { file: 'Brilliantik.png', name: 'Brilliantik' },
+            { file: 'Richik.png', name: 'Richik' },
+            { file: 'Shunya.png', name: 'Shunya' },
+            { file: 'Baks.png', name: 'Baks' }
         ];
 
         let selectedHeroIdx = 0;
@@ -746,7 +762,7 @@
         document.getElementById('changeHeroBtn').addEventListener('click', () => {
             state = 'MENU';
             UI.gameOverMenu.classList.add('hidden');
-            UI.mainMenu.classList.remove('hidden');
+            UI.mainMenu.remove('hidden');
             // Очищаємо канвас
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             initParticles();
