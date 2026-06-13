@@ -25,7 +25,7 @@
             background: var(--bg-color);
             color: var(--text);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden; /* Забороняємо скрол */
+            overflow: hidden; /* Забороняємо скрол всієї сторінки */
             touch-action: none; /* Забороняємо зум на телефонах */
         }
 
@@ -79,7 +79,7 @@
             margin-bottom: 30px;
         }
 
-        /* Вибір героїв */
+        /* Вибір героїв з підтримкою скролу */
         .hero-selection {
             display: flex;
             gap: 15px;
@@ -87,6 +87,26 @@
             flex-wrap: wrap;
             justify-content: center;
             max-width: 90vw;
+            max-height: 45vh; /* Обмежуємо висоту, щоб вміщалося на будь-якому екрані */
+            overflow-y: auto; /* Дозволяємо внутрішній вертикальний скрол */
+            touch-action: pan-y; /* Дозволяємо тач-скрол пальцем на мобільних */
+            padding: 15px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary) transparent;
+        }
+
+        /* Гарний неоновий скролбар для картки героїв */
+        .hero-selection::-webkit-scrollbar {
+            width: 6px;
+        }
+        .hero-selection::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        .hero-selection::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 10px;
+            box-shadow: 0 0 10px var(--primary);
         }
 
         .hero-card {
@@ -210,10 +230,10 @@
 
     <div id="mainMenu" class="ui-screen">
         <h1>Platon Dash</h1>
-        <p style="margin-top: -10px; margin-bottom: 30px; color: #aaa;">Обери свого героя</p>
+        <p style="margin-top: -10px; margin-bottom: 20px; color: #aaa;">Обери свого героя</p>
         
         <div class="hero-selection" id="heroContainer">
-            </div>
+        </div>
 
         <button class="btn" id="startBtn">Почати гру</button>
         <p style="margin-top: 20px; font-size: 14px; color: #888;">Пробіл / Клік / Торкання — Стрибок</p>
@@ -320,7 +340,7 @@
                 img.src = h.file;
                 img.alt = h.name;
                 
-                // Якщо картинка не завантажиться (не знайдена в папці), покажемо красиву заглушку
+                // Якщо картинка не завантажиться, покажемо красиву заглушку
                 img.onerror = () => {
                     img.style.display = 'none';
                     const fallback = document.createElement('div');
@@ -336,9 +356,8 @@
                 card.appendChild(img);
                 card.appendChild(nameLabel);
 
-                // Функція вибору для обох типів подій
-                const select = (e) => {
-                    if (e.type === 'touchstart') e.preventDefault();
+                // Функція вибору героя при кліку (активує вибір, але не заважає гортанню)
+                const select = () => {
                     document.querySelectorAll('.hero-card').forEach(c => c.classList.remove('active'));
                     card.classList.add('active');
                     selectedHeroIdx = index;
@@ -346,7 +365,6 @@
                 };
 
                 card.onclick = select;
-                card.ontouchstart = select; // Додано для миттєвого відгуку на мобільних
 
                 UI.heroContainer.appendChild(card);
             });
@@ -360,7 +378,7 @@
             heroImage.onerror = () => isHeroLoaded = false;
         }
 
-        // --- АУДІО СИСТЕМА (Без файлів) ---
+        // --- АУДІО СИСТЕМА ---
         function initAudio() {
             if (!audioCtx) {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -369,6 +387,7 @@
             if (audioCtx.state === 'suspended') audioCtx.resume();
         }
 
+        // Налаштування коротких звукових ефектів без завантаження звуків з файлу
         function playJumpSound() {
             if (!audioCtx) return;
             const osc = audioCtx.createOscillator();
@@ -414,8 +433,8 @@
             gainNode.connect(audioCtx.destination);
             
             bgmOscillator.type = 'sine';
-            bgmOscillator.frequency.setValueAtTime(110, audioCtx.currentTime); // Бас
-            gainNode.gain.setValueAtTime(0.02, audioCtx.currentTime); // Дуже тихо, щоб не дратувати
+            bgmOscillator.frequency.setValueAtTime(110, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.02, audioCtx.currentTime);
             
             bgmOscillator.start();
         }
@@ -431,7 +450,7 @@
         // --- УПРАВЛІННЯ ---
         function handleInput(e) {
             if (e.type === 'keydown' && e.code !== 'Space') return;
-            if (e.type === 'keydown') e.preventDefault(); // Запобігання скролу пробілом
+            if (e.type === 'keydown') e.preventDefault();
 
             if (state === 'PLAYING') {
                 if (player.isGrounded) {
@@ -447,7 +466,8 @@
         window.addEventListener('keydown', handleInput);
         window.addEventListener('mousedown', handleInput);
         window.addEventListener('touchstart', (e) => {
-            if (e.target.tagName !== 'BUTTON' && !e.target.closest('.hero-card')) {
+            // Дозволяємо взаємодію з кнопками та областю вибору героїв (щоб працював скрол)
+            if (e.target.tagName !== 'BUTTON' && !e.target.closest('.hero-selection')) {
                 e.preventDefault(); 
                 handleInput(e);
             }
@@ -463,14 +483,13 @@
             UI.gameOverMenu.classList.add('hidden');
             UI.hud.classList.remove('hidden');
             
-            // Скидання змінних
             frames = 0;
             score = 0;
-            gameSpeed = window.innerWidth < 600 ? 5 : 7; // На мобільних трохи повільніше
+            gameSpeed = window.innerWidth < 600 ? 5 : 7;
             obstacles = [];
             
             player = {
-                x: window.innerWidth * 0.15, // 15% від екрану зліва
+                x: window.innerWidth * 0.15,
                 y: floorY - 50,
                 size: 45,
                 dy: 0,
@@ -488,10 +507,8 @@
             stopBGM();
             playCrashSound();
             
-            // Вібрація на телефонах
             if (navigator.vibrate) navigator.vibrate(200);
 
-            // Рекорди
             if (score > bestScore) {
                 bestScore = Math.floor(score);
                 localStorage.setItem('gdBestScore', bestScore);
@@ -504,14 +521,11 @@
             UI.bestHud.innerText = bestScore;
         }
 
-        // Генерація перешкод
         function spawnObstacle() {
             const types = ['spike', 'platform', 'pit'];
-            // На початку гри ями і платформи не генеруємо для легкості
             let allowedTypes = score < 300 ? ['spike'] : score < 800 ? ['spike', 'platform'] : types;
             
             const type = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
-            
             let obs = { x: canvas.width, type: type, passed: false };
 
             if (type === 'spike') {
@@ -521,10 +535,9 @@
             } else if (type === 'platform') {
                 obs.w = Math.random() > 0.5 ? 120 : 80;
                 obs.h = 30;
-                // Платформа висить у повітрі
                 obs.y = floorY - 80 - (Math.random() * 40); 
             } else if (type === 'pit') {
-                obs.w = 150 + (gameSpeed * 5); // Чим більша швидкість, тим ширша яма, але прохідна
+                obs.w = 150 + (gameSpeed * 5);
                 obs.h = canvas.height - floorY;
                 obs.y = floorY;
             }
@@ -532,34 +545,27 @@
             obstacles.push(obs);
         }
 
-        // --- ОНОВЛЕННЯ СТАНУ ---
         function update() {
             frames++;
-            score += 0.1; // Рахунок зростає з часом
+            score += 0.1;
             UI.scoreHud.innerText = Math.floor(score);
 
-            // Збільшення швидкості
             if (frames % 600 === 0) gameSpeed += 0.5;
 
-            // Спавн перешкод
             let spawnRate = Math.max(70, 150 - Math.floor(gameSpeed * 5)); 
             if (frames % spawnRate === 0) {
                 spawnObstacle();
             }
 
-            // Фізика гравця
             player.dy += gravity;
             player.y += player.dy;
 
-            // Обертання куба під час стрибка
             if (!player.isGrounded) {
                 player.rotation += gameSpeed * 1.5;
             } else {
-                // Вирівнювання до найближчих 90 градусів при приземленні
                 player.rotation = Math.round(player.rotation / 90) * 90;
             }
 
-            // Перевірка колізій та оновлення перешкод
             player.isGrounded = false;
             let onPlatform = false;
             let inPit = false;
@@ -568,22 +574,18 @@
                 let obs = obstacles[i];
                 obs.x -= gameSpeed;
 
-                // Видалення об'єктів поза екраном
                 if (obs.x + obs.w < 0) {
                     obstacles.splice(i, 1);
                     i--;
                     continue;
                 }
 
-                // Перевірка "Провалу в яму"
                 if (obs.type === 'pit') {
                     if (player.x + player.size/2 > obs.x && player.x + player.size/2 < obs.x + obs.w) {
                         inPit = true;
                     }
                 }
 
-                // AABB Колізії (проста фізика прямокутників)
-                // Робимо хітбокс гравця трохи меншим для чесності
                 let px = player.x + 5;
                 let py = player.y + 5;
                 let pw = player.size - 10;
@@ -594,35 +596,30 @@
 
                 if (hitX && hitY) {
                     if (obs.type === 'spike') {
-                        // Для шипів робимо трикутний хітбокс наближено
                         let spikeCenter = obs.x + obs.w/2;
                         if (Math.abs((px+pw/2) - spikeCenter) < obs.w/2 - 5) {
                             gameOver();
                         }
                     } 
                     else if (obs.type === 'platform') {
-                        // Якщо падаємо зверху на платформу
                         if (player.dy > 0 && player.y + player.size - player.dy <= obs.y + 10) {
                             player.y = obs.y - player.size;
                             player.dy = 0;
                             player.isGrounded = true;
                             onPlatform = true;
                         } else {
-                            // Врізалися збоку або знизу
                             gameOver();
                         }
                     }
                 }
             }
 
-            // Логіка підлоги
             if (!inPit && !onPlatform && player.y + player.size >= floorY) {
                 player.y = floorY - player.size;
                 player.dy = 0;
                 player.isGrounded = true;
             }
 
-            // Якщо впав у яму
             if (player.y > canvas.height) {
                 gameOver();
             }
@@ -630,7 +627,6 @@
             updateParticles();
         }
 
-        // --- ВІДМАЛЬОВКА ---
         function initParticles() {
             particles = [];
             for(let i=0; i<50; i++) {
@@ -655,11 +651,9 @@
         }
 
         function draw() {
-            // Очищення фону (з легким шлейфом)
-            ctx.fillStyle = 'rgba(15, 12, 41, 0.4)'; // var(--bg-color) з прозорістю
+            ctx.fillStyle = 'rgba(15, 12, 41, 0.4)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Малюємо паралакс зірки
             particles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = 0.5;
@@ -669,26 +663,24 @@
             });
             ctx.globalAlpha = 1.0;
 
-            // Малюємо підлогу
-            ctx.fillStyle = '#1a103c'; // Темно-фіолетова
+            ctx.fillStyle = '#1a103c';
             ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
-            // Неонова лінія підлоги
+            
             ctx.shadowBlur = 15;
             ctx.shadowColor = '#00f2fe';
             ctx.fillStyle = '#00f2fe';
             ctx.fillRect(0, floorY, canvas.width, 3);
-            ctx.shadowBlur = 0; // Скидання тіні
+            ctx.shadowBlur = 0;
 
-            // Малюємо перешкоди
             obstacles.forEach(obs => {
                 if (obs.type === 'spike') {
                     ctx.fillStyle = '#ff0844';
                     ctx.shadowBlur = 15;
                     ctx.shadowColor = '#ff0844';
                     ctx.beginPath();
-                    ctx.moveTo(obs.x + obs.w / 2, obs.y); // Вершина
-                    ctx.lineTo(obs.x + obs.w, obs.y + obs.h); // Правий низ
-                    ctx.lineTo(obs.x, obs.y + obs.h); // Лівий низ
+                    ctx.moveTo(obs.x + obs.w / 2, obs.y);
+                    ctx.lineTo(obs.x + obs.w, obs.y + obs.h);
+                    ctx.lineTo(obs.x, obs.y + obs.h);
                     ctx.closePath();
                     ctx.fill();
                     ctx.shadowBlur = 0;
@@ -703,36 +695,28 @@
                     ctx.shadowColor = '#00f2fe';
                     ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
                     
-                    // Внутрішня чорна частина для стилю GD
                     ctx.fillStyle = '#0f0c29';
                     ctx.fillRect(obs.x + 3, obs.y + 3, obs.w - 6, obs.h - 6);
                     ctx.shadowBlur = 0;
                 }
                 else if (obs.type === 'pit') {
-                    // Малюємо "дірку" в підлозі (замальовуємо кольором фону)
-                    ctx.fillStyle = '#0f0c29'; // Колір фону
+                    ctx.fillStyle = '#0f0c29';
                     ctx.fillRect(obs.x, floorY, obs.w, canvas.height - floorY);
                 }
             });
 
-            // Малюємо гравця
             ctx.save();
-            // Зсуваємо центр координат в центр гравця для обертання
             ctx.translate(player.x + player.size/2, player.y + player.size/2);
             ctx.rotate(player.rotation * Math.PI / 180);
 
             if (isHeroLoaded) {
-                // Якщо зображення завантажене успішно
                 ctx.drawImage(heroImage, -player.size/2, -player.size/2, player.size, player.size);
-                
-                // Додаємо легке світіння контуру картинки
                 ctx.strokeStyle = '#00f2fe';
                 ctx.lineWidth = 2;
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = '#00f2fe';
                 ctx.strokeRect(-player.size/2, -player.size/2, player.size, player.size);
             } else {
-                // Красивий Fallback (запасний варіант), якщо картинки немає
                 let grad = ctx.createLinearGradient(-player.size/2, -player.size/2, player.size/2, player.size/2);
                 grad.addColorStop(0, '#ff0844');
                 grad.addColorStop(1, '#ffb199');
@@ -741,14 +725,12 @@
                 ctx.shadowColor = '#ff0844';
                 ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
                 
-                // Декоративний внутрішній квадрат
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(-player.size/4, -player.size/4, player.size/2, player.size/2);
             }
             ctx.restore();
         }
 
-        // Головний ігровий цикл
         function loop() {
             if (state !== 'PLAYING') return;
             update();
@@ -762,16 +744,14 @@
         document.getElementById('changeHeroBtn').addEventListener('click', () => {
             state = 'MENU';
             UI.gameOverMenu.classList.add('hidden');
-            UI.mainMenu.remove('hidden');
-            // Очищаємо канвас
+            UI.mainMenu.classList.remove('hidden');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             initParticles();
-            draw(); // Відмалює порожній фон
+            draw();
         });
 
         // Запуск меню
         createHeroMenu();
-
     </script>
 </body>
 </html>
